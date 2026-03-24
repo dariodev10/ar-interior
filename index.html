@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>AR Enterijer</title>
+
+<!-- model-viewer (handles AR Quick Look on iOS automatically) -->
+<script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root {
+  --bg:#0a0a0f; --surface:rgba(255,255,255,0.06); --surface2:rgba(255,255,255,0.11);
+  --border:rgba(255,255,255,0.09); --text:#f0f0f5; --muted:rgba(240,240,245,0.45);
+  --accent:#4f8ef7; --accent2:#7c5cfc; --green:#2dd4a0; --orange:#f7924f;
+  --yellow:#f7d24f; --red:#f74f4f; --radius:18px;
+  --font:'DM Sans',sans-serif; --mono:'DM Mono',monospace;
+}
+
+html,body{height:100%;width:100%;background:var(--bg);color:var(--text);
+  font-family:var(--font);overflow:hidden;-webkit-font-smoothing:antialiased}
+
+/* ── SPLASH ── */
+#splash{position:fixed;inset:0;z-index:1000;background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:32px;gap:0}
+
+.splash-logo{width:90px;height:90px;background:linear-gradient(135deg,var(--accent),var(--accent2));
+  border-radius:26px;display:flex;align-items:center;justify-content:center;font-size:44px;
+  margin-bottom:24px;box-shadow:0 0 60px rgba(79,142,247,0.4);
+  animation:pulse 2.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 40px rgba(79,142,247,0.3)}50%{box-shadow:0 0 80px rgba(79,142,247,0.6)}}
+
+.splash-title{font-size:34px;font-weight:700;letter-spacing:-0.5px;margin-bottom:8px;
+  background:linear-gradient(to right,#fff 40%,var(--accent));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+
+.splash-sub{font-size:15px;color:var(--muted);text-align:center;line-height:1.5;
+  max-width:280px;margin-bottom:36px}
+
+.steps{display:flex;flex-direction:column;gap:12px;width:100%;max-width:320px;margin-bottom:36px}
+
+.step{display:flex;align-items:center;gap:14px;background:var(--surface);
+  border:1px solid var(--border);border-radius:14px;padding:13px 16px}
+
+.step-icon{font-size:22px;width:40px;height:40px;display:flex;align-items:center;
+  justify-content:center;background:var(--surface2);border-radius:10px;flex-shrink:0}
+
+.step-text{font-size:13.5px;line-height:1.4;color:var(--muted)}
+.step-text b{color:var(--text)}
+
+.btn-start{width:100%;max-width:320px;padding:17px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  border:none;border-radius:var(--radius);color:white;font-family:var(--font);
+  font-size:17px;font-weight:700;cursor:pointer;
+  box-shadow:0 8px 32px rgba(79,142,247,0.35);transition:transform .15s}
+.btn-start:active{transform:scale(0.97)}
+
+/* ── MAIN APP ── */
+#app{display:none;flex-direction:column;height:100%;width:100%;position:relative}
+#app.visible{display:flex}
+
+/* ── TOP BAR ── */
+#topbar{position:absolute;top:0;left:0;right:0;z-index:20;
+  padding:max(env(safe-area-inset-top),12px) 16px 0;
+  display:flex;align-items:center;gap:10px}
+
+.pill{background:rgba(10,10,15,0.80);backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:blur(20px);border:1px solid var(--border);
+  border-radius:50px;padding:8px 14px;display:flex;align-items:center;
+  gap:7px;font-size:13px;font-weight:600;white-space:nowrap}
+
+.dot{width:8px;height:8px;border-radius:50%;background:#333;transition:background .4s}
+.dot.on{background:var(--green);box-shadow:0 0 8px var(--green)}
+
+/* ── CANVAS / PREVIEW ── */
+#canvas-area{flex:1;position:relative;overflow:hidden;
+  background:linear-gradient(160deg,#0d0d18 0%,#0a0a0f 100%)}
+
+/* model-viewer for 3D preview */
+#preview-mv{width:100%;height:100%;background:transparent;
+  --poster-color:transparent;--progress-bar-color:transparent}
+
+#hint{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  text-align:center;pointer-events:none;transition:opacity .5s}
+
+.hint-ring{width:80px;height:80px;border:2px dashed rgba(255,255,255,0.15);
+  border-radius:50%;margin:0 auto 16px;display:flex;align-items:center;
+  justify-content:center;animation:spin 8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.hint-inner{width:48px;height:48px;border:2px solid rgba(255,255,255,0.08);
+  border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px}
+#hint p{font-size:14px;color:var(--muted);line-height:1.6}
+
+/* ── BOTTOM PANEL ── */
+#bottom{background:rgba(10,10,15,0.93);backdrop-filter:blur(24px);
+  -webkit-backdrop-filter:blur(24px);border-top:1px solid var(--border);
+  padding-bottom:max(env(safe-area-inset-bottom),8px);flex-shrink:0}
+
+#sel-bar{display:flex;align-items:center;gap:12px;padding:12px 16px 10px;
+  border-bottom:1px solid var(--border);min-height:66px}
+
+.sel-emoji{width:44px;height:44px;background:var(--surface2);border-radius:12px;
+  display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0}
+
+.sel-info{flex:1;min-width:0}
+.sel-name{font-size:15px;font-weight:700}
+.sel-dims{font-size:11.5px;font-family:var(--mono);color:var(--accent);margin-top:2px}
+
+/* AR button — this is a real anchor with rel=ar for iOS Quick Look */
+#ar-link{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;
+  background:linear-gradient(135deg,var(--green),#1aa87a);
+  border:none;border-radius:11px;color:#001a12;font-family:var(--font);
+  font-size:12.5px;font-weight:700;cursor:pointer;text-decoration:none;
+  white-space:nowrap;flex-shrink:0;transition:opacity .2s}
+#ar-link.loading{opacity:0.6;pointer-events:none}
+
+/* loading spinner inline */
+.spin-sm{display:inline-block;width:14px;height:14px;border:2px solid rgba(0,26,18,0.3);
+  border-top-color:#001a12;border-radius:50%;animation:spinr .7s linear infinite}
+@keyframes spinr{to{transform:rotate(360deg)}}
+
+/* categories */
+#cats{display:flex;gap:8px;overflow-x:auto;padding:10px 16px 8px;
+  scrollbar-width:none;-webkit-overflow-scrolling:touch}
+#cats::-webkit-scrollbar{display:none}
+
+.cat{flex-shrink:0;padding:6px 14px;background:var(--surface);border:1px solid var(--border);
+  border-radius:50px;color:var(--muted);font-family:var(--font);font-size:12.5px;
+  font-weight:600;cursor:pointer;transition:all .2s;white-space:nowrap;
+  -webkit-tap-highlight-color:transparent}
+.cat.active{background:var(--accent);border-color:var(--accent);color:white}
+
+/* furniture scroll */
+#furn-scroll{display:flex;gap:10px;overflow-x:auto;padding:8px 16px 12px;
+  scrollbar-width:none;-webkit-overflow-scrolling:touch}
+#furn-scroll::-webkit-scrollbar{display:none}
+
+.fc{flex-shrink:0;width:80px;display:flex;flex-direction:column;align-items:center;
+  gap:6px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+
+.fc-box{width:68px;height:68px;border-radius:16px;background:var(--surface);
+  border:2.5px solid transparent;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:3px;
+  transition:all .22s cubic-bezier(0.34,1.56,0.64,1)}
+.fc.sel .fc-box{border-color:var(--accent);background:rgba(79,142,247,0.13);transform:scale(1.07)}
+
+.fc-emoji{font-size:28px}
+.fc-size{font-size:7px;font-family:var(--mono);color:var(--muted)}
+.fc.sel .fc-size{color:var(--accent)}
+
+.fc-label{font-size:10px;font-weight:500;color:var(--muted);text-align:center;
+  line-height:1.3;max-width:76px}
+.fc.sel .fc-label{color:var(--text);font-weight:700}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:110px;left:50%;
+  transform:translateX(-50%) translateY(16px);
+  background:rgba(18,18,28,0.96);border:1px solid var(--border);
+  border-radius:50px;padding:11px 20px;font-size:13px;font-weight:600;
+  color:var(--text);white-space:nowrap;opacity:0;pointer-events:none;z-index:500;
+  transition:opacity .3s,transform .3s;backdrop-filter:blur(20px)}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ── MODAL ── */
+#modal{display:none;position:fixed;inset:0;z-index:200;
+  background:rgba(0,0,0,0.80);backdrop-filter:blur(14px);
+  flex-direction:column;align-items:center;justify-content:flex-end;
+  padding:16px;padding-bottom:max(env(safe-area-inset-bottom),16px)}
+#modal.open{display:flex;animation:up .35s cubic-bezier(0.34,1.56,0.64,1)}
+@keyframes up{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}
+
+.mc{background:rgba(16,16,26,0.99);border:1px solid var(--border);
+  border-radius:28px;padding:24px;width:100%;max-width:420px}
+
+.mhandle{width:40px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 20px}
+
+.modal-mv-wrap{width:100%;height:200px;background:var(--surface);border-radius:18px;
+  overflow:hidden;margin-bottom:20px;position:relative}
+
+#modal-mv{width:100%;height:100%;background:transparent;--poster-color:transparent;
+  --progress-bar-color:var(--accent)}
+
+.modal-title{font-size:22px;font-weight:700;margin-bottom:4px}
+
+.modal-dims{font-family:var(--mono);font-size:13px;color:var(--accent);
+  margin-bottom:20px;display:flex;gap:16px;flex-wrap:wrap}
+
+.di{display:flex;flex-direction:column;gap:2px}
+.dl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px}
+.dv{font-size:15px;font-weight:600}
+
+.modal-btns{display:flex;flex-direction:column;gap:10px}
+
+/* THE real AR button - anchor tag with rel=ar */
+#modal-ar-anchor{display:flex;align-items:center;justify-content:center;gap:10px;
+  width:100%;padding:16px;background:linear-gradient(135deg,var(--green),#1aa87a);
+  border:none;border-radius:14px;color:#001a12;font-family:var(--font);
+  font-size:16px;font-weight:700;cursor:pointer;text-decoration:none;
+  box-shadow:0 6px 24px rgba(45,212,160,0.30);-webkit-tap-highlight-color:transparent}
+#modal-ar-anchor.loading{opacity:0.6;pointer-events:none}
+
+.btn-close{width:100%;padding:14px;background:var(--surface2);
+  border:1px solid var(--border);border-radius:14px;color:var(--muted);
+  font-family:var(--font);font-size:15px;font-weight:600;cursor:pointer}
+
+/* fallback AR viewer page */
+#ar-page{display:none;position:fixed;inset:0;z-index:300;
+  background:#000;flex-direction:column}
+#ar-page.open{display:flex}
+#ar-page-mv{flex:1;width:100%;--poster-color:transparent}
+#ar-page-bar{padding:16px;background:#111;color:#fff;text-align:center;
+  padding-bottom:max(env(safe-area-inset-bottom),16px)}
+#ar-page-bar h2{font-size:17px;margin-bottom:2px}
+#ar-page-bar p{font-size:12px;color:#888}
+.btn-close-page{margin-top:12px;padding:12px 24px;background:var(--accent);
+  border:none;border-radius:12px;color:#fff;font-family:var(--font);
+  font-size:15px;font-weight:700;cursor:pointer;width:100%;max-width:300px}
+</style>
+</head>
+<body>
+
+<!-- SPLASH -->
+<div id="splash">
+  <div class="splash-logo">🏠</div>
+  <h1 class="splash-title">AR Enterijer</h1>
+  <p class="splash-sub">Vidi kako namještaj izgleda u tvom prostoru — točne dimenzije, pravi AR.</p>
+  <div class="steps">
+    <div class="step"><div class="step-icon">🛋️</div><div class="step-text"><b>Odaberi namještaj</b> iz kataloga s točnim dimenzijama</div></div>
+    <div class="step"><div class="step-icon">📐</div><div class="step-text"><b>Klikni "AR"</b> — otvara se Apple AR kamera</div></div>
+    <div class="step"><div class="step-icon">✅</div><div class="step-text"><b>Vidi u točnoj veličini</b> — 1:1 u tvom prostoru</div></div>
+  </div>
+  <button class="btn-start" onclick="startApp()">Počni →</button>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <div id="topbar">
+    <div class="pill"><span class="dot" id="dot"></span><span id="status">Odaberi komad</span></div>
+    <div style="flex:1"></div>
+    <div class="pill" style="cursor:pointer" onclick="toast('👆 Odaberi → AR → Postavi na pod')">?</div>
+  </div>
+
+  <div id="canvas-area">
+    <model-viewer id="preview-mv"
+      camera-controls auto-rotate
+      shadow-intensity="0.6" exposure="1.1"
+      rotation-per-second="20deg">
+    </model-viewer>
+    <div id="hint">
+      <div class="hint-ring"><div class="hint-inner">🛋️</div></div>
+      <p>Odaberi namještaj<br>i klikni <b style="color:var(--green)">AR</b></p>
+    </div>
+  </div>
+
+  <div id="bottom">
+    <div id="sel-bar">
+      <div class="sel-emoji" id="sel-emoji">🛋️</div>
+      <div class="sel-info">
+        <div class="sel-name" id="sel-name">Odaberi namještaj</div>
+        <div class="sel-dims" id="sel-dims">—</div>
+      </div>
+      <button id="ar-link" onclick="openModal()">📐 AR</button>
+    </div>
+    <div id="cats"></div>
+    <div id="furn-scroll"></div>
+  </div>
+</div>
+
+<!-- DETAIL MODAL -->
+<div id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="mc">
+    <div class="mhandle"></div>
+    <div class="modal-mv-wrap">
+      <model-viewer id="modal-mv" camera-controls auto-rotate
+        shadow-intensity="0.8" exposure="1.2" rotation-per-second="25deg">
+      </model-viewer>
+    </div>
+    <div class="modal-title" id="modal-name">—</div>
+    <div class="modal-dims" id="modal-dims"></div>
+    <div class="modal-btns">
+      <a id="modal-ar-anchor" onclick="launchAR()">
+        <span id="ar-btn-icon">📐</span>
+        <span id="ar-btn-text">Otvori u AR kameri</span>
+      </a>
+      <button class="btn-close" onclick="closeModal()">Zatvori</button>
+    </div>
+  </div>
+</div>
+
+<!-- FULLSCREEN AR PAGE (fallback) -->
+<div id="ar-page">
+  <model-viewer id="ar-page-mv"
+    ar ar-modes="quick-look scene-viewer webxr"
+    ar-scale="fixed"
+    camera-controls auto-rotate
+    shadow-intensity="1" exposure="1.2">
+    <button slot="ar-button" style="
+      position:absolute;bottom:32px;left:50%;transform:translateX(-50%);
+      padding:15px 32px;background:var(--green);border:none;border-radius:50px;
+      font-size:16px;font-weight:700;color:#001a12;cursor:pointer;
+      box-shadow:0 6px 20px rgba(45,212,160,0.4)">
+      📐 Postavi u prostoru
+    </button>
+  </model-viewer>
+  <div id="ar-page-bar">
+    <h2 id="ar-page-name">—</h2>
+    <p id="ar-page-dims">—</p>
+    <button class="btn-close-page" onclick="closeARPage()">← Natrag</button>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+// ── Furniture catalogue ─────────────────────────────────────────
+const ITEMS = [
+  {id:1,  name:"Sofa 3-sjedišta", emoji:"🛋️", w:2.20,h:0.85,d:0.95, r:0.20,g:0.28,b:0.82, cat:"Dnevni"},
+  {id:2,  name:"Sofa 2-sjedišta", emoji:"🛋️", w:1.60,h:0.85,d:0.95, r:0.25,g:0.32,b:0.78, cat:"Dnevni"},
+  {id:3,  name:"Fotelja",         emoji:"🪑", w:0.85,h:0.90,d:0.85, r:0.50,g:0.25,b:0.72, cat:"Dnevni"},
+  {id:4,  name:"TV Komoda",       emoji:"📺", w:1.60,h:0.45,d:0.40, r:0.12,g:0.12,b:0.14, cat:"Dnevni"},
+  {id:5,  name:"Polica",          emoji:"📚", w:0.80,h:1.90,d:0.30, r:0.52,g:0.33,b:0.16, cat:"Dnevni"},
+  {id:6,  name:"Kava stol",       emoji:"☕", w:1.20,h:0.45,d:0.65, r:0.50,g:0.36,b:0.20, cat:"Dnevni"},
+  {id:7,  name:"Krevet 160",      emoji:"🛏️", w:1.65,h:0.50,d:2.05, r:0.52,g:0.36,b:0.22, cat:"Spavaća"},
+  {id:8,  name:"Krevet 180",      emoji:"🛏️", w:1.85,h:0.50,d:2.05, r:0.46,g:0.30,b:0.18, cat:"Spavaća"},
+  {id:9,  name:"Ormar 2-vrata",   emoji:"🗄️", w:1.00,h:2.10,d:0.60, r:0.86,g:0.85,b:0.78, cat:"Spavaća"},
+  {id:10, name:"Ormar 3-vrata",   emoji:"🗄️", w:1.50,h:2.10,d:0.60, r:0.82,g:0.81,b:0.74, cat:"Spavaća"},
+  {id:11, name:"Noćni ormarić",   emoji:"🪟", w:0.50,h:0.55,d:0.40, r:0.62,g:0.48,b:0.28, cat:"Spavaća"},
+  {id:12, name:"Komoda",          emoji:"🗃️", w:1.00,h:0.85,d:0.45, r:0.68,g:0.52,b:0.32, cat:"Spavaća"},
+  {id:13, name:"Stol 4 osobe",    emoji:"🍽️", w:1.20,h:0.76,d:0.80, r:0.50,g:0.33,b:0.18, cat:"Blagov."},
+  {id:14, name:"Stol 6 osoba",    emoji:"🍽️", w:1.80,h:0.76,d:0.90, r:0.44,g:0.28,b:0.16, cat:"Blagov."},
+  {id:15, name:"Stolica",         emoji:"🪑", w:0.45,h:0.90,d:0.45, r:0.14,g:0.48,b:0.62, cat:"Blagov."},
+  {id:16, name:"Vitrina",         emoji:"🏺", w:1.00,h:1.80,d:0.40, r:0.78,g:0.78,b:0.70, cat:"Blagov."},
+  {id:17, name:"Kuhinjski blok",  emoji:"🍳", w:2.40,h:0.90,d:0.60, r:0.82,g:0.82,b:0.80, cat:"Kuhinja"},
+  {id:18, name:"Frižider",        emoji:"🧊", w:0.60,h:1.85,d:0.65, r:0.86,g:0.86,b:0.88, cat:"Kuhinja"},
+  {id:19, name:"Kuhinjski otok",  emoji:"🏝️", w:1.20,h:0.90,d:0.80, r:0.76,g:0.76,b:0.74, cat:"Kuhinja"},
+  {id:20, name:"Radni stol",      emoji:"💻", w:1.40,h:0.75,d:0.70, r:0.18,g:0.36,b:0.52, cat:"Radna"},
+  {id:21, name:"Ured. stolica",   emoji:"🪑", w:0.65,h:1.15,d:0.65, r:0.08,g:0.08,b:0.10, cat:"Radna"},
+  {id:22, name:"Tuš kabina",      emoji:"🚿", w:0.90,h:2.00,d:0.90, r:0.62,g:0.86,b:0.90, cat:"Kupaon."},
+  {id:23, name:"Kada",            emoji:"🛁", w:1.70,h:0.60,d:0.75, r:0.90,g:0.90,b:0.93, cat:"Kupaon."},
+  {id:24, name:"Umivaonik",       emoji:"🚰", w:0.60,h:0.85,d:0.50, r:0.86,g:0.86,b:0.88, cat:"Kupaon."},
+  {id:25, name:"WC školjka",      emoji:"🚽", w:0.40,h:0.80,d:0.70, r:0.91,g:0.91,b:0.91, cat:"Kupaon."},
+];
+
+const CATS = ["Svi","Dnevni","Spavaća","Blagov.","Kuhinja","Radna","Kupaon."];
+
+let sel = ITEMS[0];
+let selCat = "Svi";
+let glbCache = {};
+let glbLoading = false;
+
+// ── GLB builder (using Three.js from unpkg — works on Safari) ──
+async function buildGLB(item) {
+  if (glbCache[item.id]) return glbCache[item.id];
+
+  const THREE = await import('https://unpkg.com/three@0.160.0/build/three.module.js');
+  const { GLTFExporter } = await import('https://unpkg.com/three@0.160.0/examples/jsm/exporters/GLTFExporter.js');
+
+  const scene = new THREE.Scene();
+
+  const toHex = (r,g,b) => (r*255<<16 | g*255<<8 | b*255);
+  const col = toHex(item.r, item.g, item.b);
+
+  // Main body
+  const bodyGeo = new THREE.BoxGeometry(item.w, item.h, item.d);
+  const bodyMat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.72, metalness: 0.04 });
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  body.position.y = item.h / 2;
+  scene.add(body);
+
+  // Top shine
+  const topGeo = new THREE.BoxGeometry(item.w * 0.97, 0.006, item.d * 0.97);
+  const topCol = toHex(Math.min(item.r+0.3,1), Math.min(item.g+0.3,1), Math.min(item.b+0.3,1));
+  const topMat = new THREE.MeshStandardMaterial({ color: topCol, roughness: 0.3, metalness: 0.15, transparent: true, opacity: 0.55 });
+  const top = new THREE.Mesh(topGeo, topMat);
+  top.position.y = item.h + 0.004;
+  scene.add(top);
+
+  // Floor outline
+  const lm = new THREE.MeshStandardMaterial({ color: col, roughness: 0.8, transparent: true, opacity: 0.80 });
+  const addBox = (w,h,d,x,y,z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d),lm); m.position.set(x,y,z); scene.add(m); };
+  addBox(item.w, 0.004, 0.014, 0, 0.003, -item.d/2);
+  addBox(item.w, 0.004, 0.014, 0, 0.003,  item.d/2);
+  addBox(0.014,  0.004, item.d, -item.w/2, 0.003, 0);
+  addBox(0.014,  0.004, item.d,  item.w/2, 0.003, 0);
+
+  // Dimension lines
+  const ym = new THREE.MeshStandardMaterial({ color: 0xffdd00, roughness: 0.5 });
+  const gm = new THREE.MeshStandardMaterial({ color: 0x2dd4a0, roughness: 0.5 });
+  const rm = new THREE.MeshStandardMaterial({ color: 0xff7070, roughness: 0.5 });
+
+  // width (yellow)
+  const wl = new THREE.Mesh(new THREE.BoxGeometry(item.w, 0.007, 0.007), ym);
+  wl.position.set(0, 0.01, item.d/2 + 0.08); scene.add(wl);
+  // depth (green)
+  const dl = new THREE.Mesh(new THREE.BoxGeometry(0.007, 0.007, item.d), gm);
+  dl.position.set(item.w/2 + 0.08, 0.01, 0); scene.add(dl);
+  // height (red)
+  const hl = new THREE.Mesh(new THREE.BoxGeometry(0.007, item.h, 0.007), rm);
+  hl.position.set(item.w/2 + 0.08, item.h/2, 0); scene.add(hl);
+
+  // Lighting
+  scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+  const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+  dir.position.set(3, 5, 4); scene.add(dir);
+
+  return new Promise((resolve, reject) => {
+    const exporter = new GLTFExporter();
+    exporter.parse(scene, result => {
+      const blob = new Blob([result], { type: 'model/gltf-binary' });
+      const url = URL.createObjectURL(blob);
+      glbCache[item.id] = url;
+      resolve(url);
+    }, err => reject(err), { binary: true });
+  });
+}
+
+// ── UI helpers ──────────────────────────────────────────────────
+function renderCats() {
+  document.getElementById('cats').innerHTML =
+    CATS.map(c => `<button class="cat ${c===selCat?'active':''}" onclick="setCat('${c}')">${c}</button>`).join('');
+}
+
+function renderItems() {
+  const list = selCat==='Svi' ? ITEMS : ITEMS.filter(i=>i.cat===selCat);
+  document.getElementById('furn-scroll').innerHTML =
+    list.map(item => `
+      <div class="fc ${item.id===sel.id?'sel':''}" onclick="setItem(${item.id})">
+        <div class="fc-box">
+          <div class="fc-emoji">${item.emoji}</div>
+          <div class="fc-size">${Math.round(item.w*100)}×${Math.round(item.d*100)}</div>
+        </div>
+        <div class="fc-label">${item.name}</div>
+      </div>`).join('');
+}
+
+function updateBar(item) {
+  document.getElementById('sel-emoji').textContent = item.emoji;
+  document.getElementById('sel-name').textContent  = item.name;
+  document.getElementById('sel-dims').textContent  =
+    `Š:${Math.round(item.w*100)}cm  D:${Math.round(item.d*100)}cm  V:${Math.round(item.h*100)}cm`;
+  document.getElementById('dot').classList.add('on');
+  document.getElementById('status').textContent = item.name + ' — odabrano';
+}
+
+async function loadPreview(item) {
+  document.getElementById('hint').style.opacity = '0';
+  const mv = document.getElementById('preview-mv');
+  mv.src = '';
+  try {
+    toast('⏳ Učitavam 3D model...');
+    const url = await buildGLB(item);
+    mv.src = url;
+    toast('✅ Gotovo!');
+  } catch(e) {
+    console.error(e);
+    toast('❌ Greška: ' + e.message);
+  }
+}
+
+// ── Actions ─────────────────────────────────────────────────────
+window.setCat = function(c) {
+  selCat = c; renderCats(); renderItems();
+  const first = selCat==='Svi' ? ITEMS[0] : ITEMS.find(i=>i.cat===selCat)||ITEMS[0];
+  setItem(first.id);
+};
+
+window.setItem = function(id) {
+  sel = ITEMS.find(i=>i.id===id);
+  renderItems(); updateBar(sel);
+  loadPreview(sel);
+};
+
+window.openModal = async function() {
+  const item = sel;
+  document.getElementById('modal-name').textContent = item.name;
+  document.getElementById('modal-dims').innerHTML = `
+    <div class="di"><div class="dl">Širina</div><div class="dv" style="color:var(--yellow)">${Math.round(item.w*100)} cm</div></div>
+    <div class="di"><div class="dl">Dubina</div><div class="dv" style="color:var(--green)">${Math.round(item.d*100)} cm</div></div>
+    <div class="di"><div class="dl">Visina</div><div class="dv" style="color:var(--orange)">${Math.round(item.h*100)} cm</div></div>`;
+  document.getElementById('modal').classList.add('open');
+
+  const mmv = document.getElementById('modal-mv');
+  if (glbCache[item.id]) {
+    mmv.src = glbCache[item.id];
+  } else {
+    setARBtnLoading(true);
+    try {
+      const url = await buildGLB(item);
+      mmv.src = url;
+    } catch(e) { toast('❌ ' + e.message); }
+    setARBtnLoading(false);
+  }
+};
+
+window.closeModal = function() {
+  document.getElementById('modal').classList.remove('open');
+};
+
+function setARBtnLoading(on) {
+  const a = document.getElementById('modal-ar-anchor');
+  const icon = document.getElementById('ar-btn-icon');
+  const txt = document.getElementById('ar-btn-text');
+  if (on) {
+    a.classList.add('loading');
+    icon.innerHTML = '<span class="spin-sm"></span>';
+    txt.textContent = 'Generiram model...';
+  } else {
+    a.classList.remove('loading');
+    icon.textContent = '📐';
+    txt.textContent = 'Otvori u AR kameri';
+  }
+}
+
+window.launchAR = async function() {
+  const item = sel;
+  let url = glbCache[item.id];
+
+  if (!url) {
+    setARBtnLoading(true);
+    try { url = await buildGLB(item); }
+    catch(e) { toast('❌ Greška: ' + e.message); setARBtnLoading(false); return; }
+    setARBtnLoading(false);
+  }
+
+  closeModal();
+
+  // Open fullscreen AR page
+  const page = document.getElementById('ar-page');
+  const mv = document.getElementById('ar-page-mv');
+  document.getElementById('ar-page-name').textContent = item.emoji + ' ' + item.name;
+  document.getElementById('ar-page-dims').textContent =
+    `Š:${Math.round(item.w*100)}cm × D:${Math.round(item.d*100)}cm × V:${Math.round(item.h*100)}cm`;
+  mv.src = url;
+  page.classList.add('open');
+
+  // Give model-viewer time to load, then auto-activate AR
+  mv.addEventListener('load', () => {
+    setTimeout(() => {
+      try { mv.activateAR(); } catch(e) { /* user taps button manually */ }
+    }, 600);
+  }, { once: true });
+};
+
+window.closeARPage = function() {
+  document.getElementById('ar-page').classList.remove('open');
+};
+
+// ── Toast ────────────────────────────────────────────────────────
+let toastTimer;
+window.toast = function(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+};
+
+// ── Start ────────────────────────────────────────────────────────
+window.startApp = async function() {
+  document.getElementById('splash').style.display = 'none';
+  document.getElementById('app').classList.add('visible');
+  renderCats(); renderItems(); updateBar(sel);
+  await loadPreview(sel);
+};
+</script>
+</body>
+</html>
