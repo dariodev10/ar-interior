@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>AR Enterijer</title>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js"
+  }
+}
+</script>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: rgba(255,255,255,0.06);
+    --surface2: rgba(255,255,255,0.10);
+    --border: rgba(255,255,255,0.09);
+    --text: #f0f0f5;
+    --muted: rgba(240,240,245,0.45);
+    --accent: #4f8ef7;
+    --accent2: #7c5cfc;
+    --green: #2dd4a0;
+    --orange: #f7924f;
+    --yellow: #f7d24f;
+    --radius: 18px;
+    --font: 'DM Sans', sans-serif;
+    --mono: 'DM Mono', monospace;
+  }
+
+  html, body {
+    height: 100%; width: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── SPLASH ───────────────────────────────────── */
+  #splash {
+    position: fixed; inset: 0; z-index: 1000;
+    background: var(--bg);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 0;
+    padding: 32px;
+  }
+
+  .splash-logo {
+    width: 88px; height: 88px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 26px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 42px;
+    margin-bottom: 24px;
+    box-shadow: 0 0 60px rgba(79,142,247,0.35);
+    animation: logoPulse 2.5s ease-in-out infinite;
+  }
+  @keyframes logoPulse {
+    0%,100% { box-shadow: 0 0 40px rgba(79,142,247,0.3); }
+    50%      { box-shadow: 0 0 80px rgba(79,142,247,0.55); }
+  }
+
+  .splash-title {
+    font-size: 32px; font-weight: 700; letter-spacing: -0.5px;
+    margin-bottom: 8px;
+    background: linear-gradient(to right, #fff 40%, var(--accent));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+
+  .splash-sub {
+    font-size: 15px; color: var(--muted); text-align: center;
+    line-height: 1.5; max-width: 280px;
+    margin-bottom: 40px;
+  }
+
+  .splash-steps {
+    display: flex; flex-direction: column; gap: 14px;
+    width: 100%; max-width: 320px;
+    margin-bottom: 40px;
+  }
+
+  .step {
+    display: flex; align-items: center; gap: 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 13px 16px;
+  }
+
+  .step-icon {
+    font-size: 22px; width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface2); border-radius: 10px; flex-shrink: 0;
+  }
+
+  .step-text { font-size: 13.5px; line-height: 1.4; color: var(--muted); }
+  .step-text b { color: var(--text); }
+
+  .btn-start {
+    width: 100%; max-width: 320px;
+    padding: 17px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none; border-radius: var(--radius);
+    color: white; font-family: var(--font);
+    font-size: 17px; font-weight: 700;
+    cursor: pointer; letter-spacing: 0.2px;
+    box-shadow: 0 8px 32px rgba(79,142,247,0.35);
+    transition: transform .15s, box-shadow .15s;
+  }
+  .btn-start:active { transform: scale(0.97); box-shadow: 0 4px 16px rgba(79,142,247,0.25); }
+
+  /* ── MAIN APP ─────────────────────────────────── */
+  #app {
+    display: none;
+    flex-direction: column;
+    height: 100%; width: 100%;
+    position: relative;
+  }
+  #app.visible { display: flex; }
+
+  /* ── TOP BAR ──────────────────────────────────── */
+  #topbar {
+    position: absolute; top: 0; left: 0; right: 0;
+    z-index: 20;
+    padding: max(env(safe-area-inset-top), 12px) 16px 0;
+    display: flex; align-items: center; gap: 10px;
+  }
+
+  .topbar-pill {
+    background: rgba(10,10,15,0.75);
+    backdrop-filter: blur(20px) saturate(1.5);
+    -webkit-backdrop-filter: blur(20px) saturate(1.5);
+    border: 1px solid var(--border);
+    border-radius: 50px; padding: 8px 14px;
+    display: flex; align-items: center; gap: 7px;
+    font-size: 13px; font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #555;
+    transition: background .4s;
+  }
+  .status-dot.active { background: var(--green); box-shadow: 0 0 8px var(--green); }
+
+  /* ── CANVAS AREA ──────────────────────────────── */
+  #canvas-area {
+    flex: 1; position: relative; overflow: hidden;
+    background: linear-gradient(160deg, #0d0d18 0%, #0a0a0f 100%);
+  }
+
+  #preview-canvas {
+    width: 100%; height: 100%;
+    display: block;
+  }
+
+  /* Empty state hint */
+  #hint {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center; pointer-events: none;
+    transition: opacity .5s;
+  }
+
+  .hint-ring {
+    width: 80px; height: 80px;
+    border: 2px dashed rgba(255,255,255,0.2);
+    border-radius: 50%; margin: 0 auto 16px;
+    display: flex; align-items: center; justify-content: center;
+    animation: spin 8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .hint-inner {
+    width: 48px; height: 48px;
+    border: 2px solid rgba(255,255,255,0.08);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+  }
+
+  #hint p { font-size: 14px; color: var(--muted); line-height: 1.6; }
+
+  /* AR button overlay (shown on selected item) */
+  #ar-launch-area {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    display: flex; justify-content: center;
+    padding: 20px 20px 24px;
+    background: linear-gradient(to top, rgba(10,10,15,0.9) 0%, transparent 100%);
+    pointer-events: none; opacity: 0;
+    transition: opacity .3s;
+  }
+  #ar-launch-area.visible { opacity: 1; pointer-events: all; }
+
+  .ar-model-view-wrapper {
+    width: 100%; max-width: 400px;
+  }
+
+  model-viewer {
+    width: 100%; height: 200px;
+    background: transparent;
+    --poster-color: transparent;
+  }
+
+  .btn-ar {
+    width: 100%;
+    padding: 17px;
+    background: linear-gradient(135deg, var(--green), #1aa87a);
+    border: none; border-radius: var(--radius);
+    color: #00150f; font-family: var(--font);
+    font-size: 17px; font-weight: 700;
+    cursor: pointer; display: flex;
+    align-items: center; justify-content: center; gap: 8px;
+    box-shadow: 0 8px 32px rgba(45,212,160,0.35);
+    transition: transform .15s;
+  }
+  .btn-ar:active { transform: scale(0.97); }
+  .btn-ar.loading { opacity: 0.7; pointer-events: none; }
+
+  .btn-ar-icon { font-size: 20px; }
+
+  /* ── BOTTOM PANEL ─────────────────────────────── */
+  #bottom-panel {
+    background: rgba(10,10,15,0.92);
+    backdrop-filter: blur(24px) saturate(1.5);
+    -webkit-backdrop-filter: blur(24px) saturate(1.5);
+    border-top: 1px solid var(--border);
+    padding-bottom: max(env(safe-area-inset-bottom), 8px);
+    flex-shrink: 0;
+  }
+
+  /* Selected item bar */
+  #selected-bar {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px 10px;
+    border-bottom: 1px solid var(--border);
+    min-height: 64px;
+  }
+
+  .selected-emoji {
+    width: 44px; height: 44px;
+    background: var(--surface2); border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; flex-shrink: 0;
+  }
+
+  .selected-info { flex: 1; min-width: 0; }
+  .selected-name { font-size: 15px; font-weight: 700; }
+  .selected-dims {
+    font-size: 11.5px; font-family: var(--mono);
+    color: var(--accent); margin-top: 2px;
+  }
+
+  .btn-view-3d {
+    padding: 8px 14px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text); font-family: var(--font);
+    font-size: 12px; font-weight: 600;
+    cursor: pointer; white-space: nowrap;
+    transition: background .15s;
+  }
+  .btn-view-3d:active { background: var(--surface); }
+
+  /* Categories */
+  #categories {
+    display: flex; gap: 8px; overflow-x: auto;
+    padding: 10px 16px 8px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  #categories::-webkit-scrollbar { display: none; }
+
+  .cat-btn {
+    flex-shrink: 0; padding: 6px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 50px;
+    color: var(--muted); font-family: var(--font);
+    font-size: 12.5px; font-weight: 600;
+    cursor: pointer; transition: all .2s;
+    white-space: nowrap;
+  }
+  .cat-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+  }
+
+  /* Furniture grid / scroll */
+  #furniture-scroll {
+    display: flex; gap: 10px; overflow-x: auto;
+    padding: 8px 16px 12px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  #furniture-scroll::-webkit-scrollbar { display: none; }
+
+  .furn-card {
+    flex-shrink: 0; width: 80px;
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .furn-icon-box {
+    width: 68px; height: 68px;
+    border-radius: 16px;
+    background: var(--surface);
+    border: 2px solid transparent;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 3px;
+    transition: all .2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    position: relative; overflow: hidden;
+  }
+
+  .furn-icon-box::before {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.04), transparent);
+    border-radius: inherit;
+  }
+
+  .furn-card.selected .furn-icon-box {
+    border-color: var(--accent);
+    background: rgba(79,142,247,0.12);
+    transform: scale(1.06);
+  }
+
+  .furn-emoji { font-size: 28px; }
+
+  .furn-size {
+    font-size: 7px; font-family: var(--mono);
+    color: var(--muted); line-height: 1;
+    text-align: center;
+  }
+  .furn-card.selected .furn-size { color: var(--accent); }
+
+  .furn-label {
+    font-size: 10px; font-weight: 500;
+    color: var(--muted); text-align: center;
+    line-height: 1.3; max-width: 76px;
+  }
+  .furn-card.selected .furn-label { color: var(--text); font-weight: 700; }
+
+  /* ── AR modal ─────────────────────────────────── */
+  #ar-modal {
+    display: none; position: fixed; inset: 0; z-index: 200;
+    background: rgba(0,0,0,0.85);
+    backdrop-filter: blur(12px);
+    flex-direction: column; align-items: center; justify-content: flex-end;
+    padding: 20px;
+    padding-bottom: max(env(safe-area-inset-bottom), 20px);
+  }
+  #ar-modal.open { display: flex; animation: slideUp .35s cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+  @keyframes slideUp {
+    from { transform: translateY(40px); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+  }
+
+  .modal-card {
+    background: rgba(18,18,28,0.98);
+    border: 1px solid var(--border);
+    border-radius: 28px;
+    padding: 24px;
+    width: 100%; max-width: 400px;
+  }
+
+  .modal-handle {
+    width: 40px; height: 4px;
+    background: var(--border); border-radius: 2px;
+    margin: 0 auto 20px;
+  }
+
+  .modal-preview-wrap {
+    width: 100%; height: 180px;
+    background: var(--surface);
+    border-radius: 18px; overflow: hidden;
+    margin-bottom: 20px; position: relative;
+  }
+
+  .modal-preview-wrap model-viewer {
+    width: 100%; height: 100%;
+  }
+
+  .modal-title { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+
+  .modal-dims {
+    font-family: var(--mono); font-size: 13px;
+    color: var(--accent); margin-bottom: 20px;
+    display: flex; gap: 16px; flex-wrap: wrap;
+  }
+
+  .dim-item { display: flex; flex-direction: column; gap: 2px; }
+  .dim-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .dim-val { font-size: 15px; font-weight: 600; }
+
+  .modal-btns { display: flex; flex-direction: column; gap: 10px; }
+
+  .btn-ar-main {
+    width: 100%; padding: 16px;
+    background: linear-gradient(135deg, var(--green), #1aa87a);
+    border: none; border-radius: 14px;
+    color: #001a12; font-family: var(--font);
+    font-size: 16px; font-weight: 700;
+    cursor: pointer; display: flex;
+    align-items: center; justify-content: center; gap: 10px;
+    box-shadow: 0 6px 24px rgba(45,212,160,0.3);
+  }
+
+  .btn-close {
+    width: 100%; padding: 14px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    color: var(--muted); font-family: var(--font);
+    font-size: 15px; font-weight: 600;
+    cursor: pointer;
+  }
+
+  /* ── Toast ────────────────────────────────────── */
+  #toast {
+    position: fixed; bottom: 100px; left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: rgba(18,18,28,0.95);
+    border: 1px solid var(--border);
+    border-radius: 50px; padding: 11px 20px;
+    font-size: 13px; font-weight: 600;
+    color: var(--text); white-space: nowrap;
+    opacity: 0; pointer-events: none; z-index: 300;
+    transition: opacity .3s, transform .3s;
+    backdrop-filter: blur(20px);
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* hidden model-viewer for AR */
+  #ar-viewer-hidden {
+    position: absolute; width: 1px; height: 1px;
+    opacity: 0; pointer-events: none; overflow: hidden;
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════ SPLASH ═══════════════════════════════════════════════ -->
+<div id="splash">
+  <div class="splash-logo">🏠</div>
+  <h1 class="splash-title">AR Enterijer</h1>
+  <p class="splash-sub">Vidi kako namještaj izgleda u tvom prostoru u stvarnom vremenu — točne dimenzije, pravi AR.</p>
+
+  <div class="splash-steps">
+    <div class="step">
+      <div class="step-icon">🛋️</div>
+      <div class="step-text"><b>Odaberi namještaj</b> iz kataloga s točnim dimenzijama</div>
+    </div>
+    <div class="step">
+      <div class="step-icon">👁️</div>
+      <div class="step-text"><b>Klikni "Pogledaj u AR"</b> — otvara se Apple AR kamera</div>
+    </div>
+    <div class="step">
+      <div class="step-icon">📏</div>
+      <div class="step-text"><b>Vidi u točnoj veličini</b> — 1:1 u tvom prostoru</div>
+    </div>
+  </div>
+
+  <button class="btn-start" onclick="startApp()">Počni →</button>
+</div>
+
+<!-- ═══════ MAIN APP ══════════════════════════════════════════════ -->
+<div id="app">
+
+  <!-- Top bar -->
+  <div id="topbar">
+    <div class="topbar-pill">
+      <span class="status-dot" id="status-dot"></span>
+      <span id="status-text">Odaberi komad</span>
+    </div>
+    <div style="flex:1"></div>
+    <div class="topbar-pill" style="cursor:pointer" onclick="showHelp()">
+      <span>?</span>
+    </div>
+  </div>
+
+  <!-- Canvas preview -->
+  <div id="canvas-area">
+    <canvas id="preview-canvas"></canvas>
+
+    <div id="hint">
+      <div class="hint-ring">
+        <div class="hint-inner">🛋️</div>
+      </div>
+      <p>Odaberi namještaj<br>i klikni <b style="color:var(--green)">Pogledaj u AR</b></p>
+    </div>
+  </div>
+
+  <!-- Bottom panel -->
+  <div id="bottom-panel">
+    <!-- Selected item -->
+    <div id="selected-bar">
+      <div class="selected-emoji" id="sel-emoji">🛋️</div>
+      <div class="selected-info">
+        <div class="selected-name" id="sel-name">Odaberi namještaj</div>
+        <div class="selected-dims" id="sel-dims">—</div>
+      </div>
+      <button class="btn-view-3d" id="btn-view-ar" onclick="openARModal()">
+        Pogledaj u AR 🔍
+      </button>
+    </div>
+
+    <!-- Categories -->
+    <div id="categories"></div>
+
+    <!-- Furniture scroll -->
+    <div id="furniture-scroll"></div>
+  </div>
+</div>
+
+<!-- ═══════ AR MODAL ══════════════════════════════════════════════ -->
+<div id="ar-modal" onclick="closeModal(event)">
+  <div class="modal-card" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+
+    <div class="modal-preview-wrap">
+      <model-viewer id="modal-viewer"
+        auto-rotate camera-controls
+        shadow-intensity="0.8"
+        exposure="1.1"
+        style="width:100%;height:100%;background:transparent;--poster-color:transparent">
+      </model-viewer>
+    </div>
+
+    <div class="modal-title" id="modal-name">—</div>
+    <div class="modal-dims" id="modal-dims"></div>
+
+    <div class="modal-btns">
+      <button class="btn-ar-main" id="btn-ar-main" onclick="launchAR()">
+        <span>📐</span> Otvori u AR kameri
+      </button>
+      <button class="btn-close" onclick="document.getElementById('ar-modal').classList.remove('open')">
+        Zatvori
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" id="toast"></div>
+
+<!-- Hidden model-viewer for AR Quick Look trigger -->
+<div id="ar-viewer-hidden">
+  <model-viewer id="ar-trigger"
+    ar ar-modes="quick-look"
+    style="width:1px;height:1px">
+  </model-viewer>
+</div>
+
+<!-- model-viewer script -->
+<script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+
+<script type="module">
+// ─── Furniture catalogue ─────────────────────────────────────────
+const furniture = [
+  // Dnevni boravak
+  { id:1,  name:"Sofa 3-sjedišta", emoji:"🛋️", w:2.20, h:0.85, d:0.95, color:[0.25,0.35,0.90], cat:"Dnevni" },
+  { id:2,  name:"Sofa 2-sjedišta", emoji:"🛋️", w:1.60, h:0.85, d:0.95, color:[0.30,0.40,0.85], cat:"Dnevni" },
+  { id:3,  name:"Fotelja",         emoji:"🪑", w:0.85, h:0.90, d:0.85, color:[0.55,0.30,0.75], cat:"Dnevni" },
+  { id:4,  name:"TV Komoda",       emoji:"📺", w:1.60, h:0.45, d:0.40, color:[0.15,0.15,0.18], cat:"Dnevni" },
+  { id:5,  name:"Polica",          emoji:"📚", w:0.80, h:1.90, d:0.30, color:[0.55,0.35,0.18], cat:"Dnevni" },
+  { id:6,  name:"Kava stol",       emoji:"☕", w:1.20, h:0.45, d:0.65, color:[0.52,0.38,0.22], cat:"Dnevni" },
+  // Spavaća
+  { id:7,  name:"Krevet 160",      emoji:"🛏️", w:1.65, h:0.50, d:2.05, color:[0.55,0.38,0.25], cat:"Spavaća" },
+  { id:8,  name:"Krevet 180",      emoji:"🛏️", w:1.85, h:0.50, d:2.05, color:[0.48,0.32,0.20], cat:"Spavaća" },
+  { id:9,  name:"Ormar 2-vrata",   emoji:"🗄️", w:1.00, h:2.10, d:0.60, color:[0.88,0.87,0.80], cat:"Spavaća" },
+  { id:10, name:"Ormar 3-vrata",   emoji:"🗄️", w:1.50, h:2.10, d:0.60, color:[0.84,0.83,0.76], cat:"Spavaća" },
+  { id:11, name:"Noćni ormarić",   emoji:"🪟", w:0.50, h:0.55, d:0.40, color:[0.65,0.50,0.30], cat:"Spavaća" },
+  { id:12, name:"Komoda",          emoji:"🗃️", w:1.00, h:0.85, d:0.45, color:[0.70,0.55,0.35], cat:"Spavaća" },
+  // Blagovaonica
+  { id:13, name:"Stol 4 osobe",    emoji:"🍽️", w:1.20, h:0.76, d:0.80, color:[0.52,0.35,0.20], cat:"Blagov." },
+  { id:14, name:"Stol 6 osoba",    emoji:"🍽️", w:1.80, h:0.76, d:0.90, color:[0.45,0.30,0.18], cat:"Blagov." },
+  { id:15, name:"Stolica",         emoji:"🪑", w:0.45, h:0.90, d:0.45, color:[0.15,0.50,0.65], cat:"Blagov." },
+  { id:16, name:"Vitrina",         emoji:"🏺", w:1.00, h:1.80, d:0.40, color:[0.80,0.80,0.72], cat:"Blagov." },
+  // Kuhinja
+  { id:17, name:"Kuhinjski blok",  emoji:"🍳", w:2.40, h:0.90, d:0.60, color:[0.84,0.84,0.82], cat:"Kuhinja" },
+  { id:18, name:"Frižider",        emoji:"🧊", w:0.60, h:1.85, d:0.65, color:[0.88,0.88,0.90], cat:"Kuhinja" },
+  { id:19, name:"Kuhinjski otok",  emoji:"🏝️", w:1.20, h:0.90, d:0.80, color:[0.78,0.78,0.76], cat:"Kuhinja" },
+  // Radna
+  { id:20, name:"Radni stol",      emoji:"💻", w:1.40, h:0.75, d:0.70, color:[0.20,0.38,0.55], cat:"Radna"  },
+  { id:21, name:"Ureds. stolica",  emoji:"🪑", w:0.65, h:1.15, d:0.65, color:[0.10,0.10,0.12], cat:"Radna"  },
+  // Kupaonica
+  { id:22, name:"Tuš kabina",      emoji:"🚿", w:0.90, h:2.00, d:0.90, color:[0.65,0.88,0.92], cat:"Kupaoн." },
+  { id:23, name:"Kada",            emoji:"🛁", w:1.70, h:0.60, d:0.75, color:[0.92,0.92,0.95], cat:"Kupaoн." },
+  { id:24, name:"Umivaonik",       emoji:"🚰", w:0.60, h:0.85, d:0.50, color:[0.88,0.88,0.90], cat:"Kupaoн." },
+  { id:25, name:"WC školjka",      emoji:"🚽", w:0.40, h:0.80, d:0.70, color:[0.93,0.93,0.93], cat:"Kupaoн." },
+];
+
+const categories = ["Svi", "Dnevni", "Spavaća", "Blagov.", "Kuhinja", "Radna", "Kupaoн."];
+
+// ─── State ───────────────────────────────────────────────────────
+let selectedItem = furniture[0];
+let selectedCat  = "Svi";
+let glbCache     = {}; // itemId -> blob URL
+
+// ─── Three.js GLB generator ──────────────────────────────────────
+let THREE, GLTFExporter;
+
+async function loadThree() {
+  if (THREE) return;
+  const mod  = await import('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js');
+  THREE = mod;
+  // Load GLTFExporter via script tag (not ES module in CDN)
+  await new Promise(res => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/exporters/GLTFExporter.js';
+    s.onload = res; document.head.appendChild(s);
+  });
+}
+
+function makeColor(rgb) {
+  return new THREE.Color(rgb[0], rgb[1], rgb[2]);
+}
+
+async function buildGLB(item) {
+  if (glbCache[item.id]) return glbCache[item.id];
+  await loadThree();
+
+  const scene = new THREE.Scene();
+
+  // Main body
+  const geo  = new THREE.BoxGeometry(item.w, item.h, item.d);
+  const mat  = new THREE.MeshStandardMaterial({
+    color: makeColor(item.color),
+    roughness: 0.75, metalness: 0.05
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.y = item.h / 2;
+  scene.add(mesh);
+
+  // Top highlight
+  const topGeo = new THREE.BoxGeometry(item.w - 0.02, 0.006, item.d - 0.02);
+  const topMat = new THREE.MeshStandardMaterial({
+    color: makeColor([
+      Math.min(item.color[0] + 0.3, 1),
+      Math.min(item.color[1] + 0.3, 1),
+      Math.min(item.color[2] + 0.3, 1)
+    ]),
+    roughness: 0.4, metalness: 0.1, transparent: true, opacity: 0.6
+  });
+  const topMesh = new THREE.Mesh(topGeo, topMat);
+  topMesh.position.y = item.h + 0.003;
+  scene.add(topMesh);
+
+  // Floor outline lines
+  const lineMat = new THREE.MeshStandardMaterial({
+    color: makeColor(item.color), roughness: 0.8, transparent: true, opacity: 0.85
+  });
+  const lh = 0.003, lt = 0.014;
+
+  [[-item.d/2, item.w, lt], [item.d/2, item.w, lt]].forEach(([z, lw]) => {
+    const g = new THREE.BoxGeometry(lw, lh, lt);
+    const m = new THREE.Mesh(g, lineMat);
+    m.position.set(0, 0.002, z); scene.add(m);
+  });
+  [[-item.w/2, lt, item.d], [item.w/2, lt, item.d]].forEach(([x, lw, ld]) => {
+    const g = new THREE.BoxGeometry(lw, lh, ld);
+    const m = new THREE.Mesh(g, lineMat);
+    m.position.set(x, 0.002, 0); scene.add(m);
+  });
+
+  // Width dimension line (yellow)
+  addDimLine(scene, [-item.w/2, 0.008, item.d/2+0.09], [item.w/2, 0.008, item.d/2+0.09], [0.95,0.80,0.10]);
+  // Depth dimension line (green)
+  addDimLine(scene, [item.w/2+0.09, 0.008, -item.d/2], [item.w/2+0.09, 0.008, item.d/2], [0.25,0.88,0.60]);
+  // Height dimension line (red/orange)
+  addVertLine(scene, item.w/2+0.09, item.h, [1.0, 0.45, 0.35]);
+
+  // Lighting
+  scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+  const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+  dir.position.set(2, 4, 3); scene.add(dir);
+
+  return new Promise(resolve => {
+    const exporter = new THREE.GLTFExporter();
+    exporter.parse(scene, gltf => {
+      const blob = new Blob([gltf], { type: 'model/gltf-binary' });
+      const url  = URL.createObjectURL(blob);
+      glbCache[item.id] = url;
+      resolve(url);
+    }, { binary: true });
+  });
+}
+
+function addDimLine(scene, start, end, color) {
+  const s = new THREE.Vector3(...start);
+  const e = new THREE.Vector3(...end);
+  const length = s.distanceTo(e);
+  const mid    = new THREE.Vector3().addVectors(s, e).multiplyScalar(0.5);
+  const dir    = new THREE.Vector3().subVectors(e, s).normalize();
+
+  const geo = new THREE.BoxGeometry(length, 0.008, 0.008);
+  const mat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(...color), roughness: 0.5
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.copy(mid);
+
+  // Orient along direction
+  if (Math.abs(dir.z) > 0.9) {
+    mesh.rotation.y = Math.PI / 2;
+  }
+  scene.add(mesh);
+}
+
+function addVertLine(scene, x, height, color) {
+  const geo = new THREE.BoxGeometry(0.008, height, 0.008);
+  const mat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(...color), roughness: 0.5
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(x, height/2, 0);
+  scene.add(mesh);
+}
+
+// ─── Canvas 3D preview (Three.js renderer) ──────────────────────
+let renderer, previewScene, previewCamera, previewMesh, animFrame;
+
+async function initPreview(item) {
+  await loadThree();
+  const canvas = document.getElementById('preview-canvas');
+
+  if (!renderer) {
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setClearColor(0x000000, 0);
+    renderer.shadowMap.enabled = true;
+  }
+
+  const W = canvas.parentElement.offsetWidth;
+  const H = canvas.parentElement.offsetHeight;
+  renderer.setSize(W, H);
+
+  previewScene  = new THREE.Scene();
+  previewCamera = new THREE.PerspectiveCamera(40, W/H, 0.1, 100);
+  previewCamera.position.set(item.w * 1.8, item.h * 2, item.d * 2.2);
+  previewCamera.lookAt(0, item.h/2, 0);
+
+  // Lights
+  previewScene.add(new THREE.AmbientLight(0xffffff, 0.6));
+  const dir = new THREE.DirectionalLight(0xffffff, 1.2);
+  dir.position.set(3, 5, 4); previewScene.add(dir);
+  const fill = new THREE.DirectionalLight(0x8090ff, 0.4);
+  fill.position.set(-3, 2, -2); previewScene.add(fill);
+
+  // Grid floor
+  const gridHelper = new THREE.GridHelper(6, 20, 0x223355, 0x111824);
+  previewScene.add(gridHelper);
+
+  // Build item geometry
+  buildItemMesh(item);
+
+  cancelAnimationFrame(animFrame);
+  let angle = 0;
+  function animate() {
+    animFrame = requestAnimationFrame(animate);
+    angle += 0.008;
+    const r = Math.max(item.w, item.d) * 2.2;
+    previewCamera.position.x = Math.sin(angle) * r;
+    previewCamera.position.z = Math.cos(angle) * r;
+    previewCamera.position.y = item.h * 1.8;
+    previewCamera.lookAt(0, item.h/2, 0);
+    renderer.render(previewScene, previewCamera);
+  }
+  animate();
+
+  document.getElementById('hint').style.opacity = '0';
+}
+
+function buildItemMesh(item) {
+  // Main box
+  const geo = new THREE.BoxGeometry(item.w, item.h, item.d);
+  // Rounded look via phong
+  const mat = new THREE.MeshPhongMaterial({
+    color: new THREE.Color(...item.color),
+    shininess: 30, specular: new THREE.Color(0.2, 0.2, 0.2)
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.y = item.h / 2;
+  previewScene.add(mesh);
+
+  // Top shine
+  const topGeo = new THREE.BoxGeometry(item.w*0.98, 0.005, item.d*0.98);
+  const topMat = new THREE.MeshPhongMaterial({
+    color: new THREE.Color(
+      Math.min(item.color[0]+0.4,1),
+      Math.min(item.color[1]+0.4,1),
+      Math.min(item.color[2]+0.4,1)
+    ),
+    transparent: true, opacity: 0.5, shininess: 80
+  });
+  const top = new THREE.Mesh(topGeo, topMat);
+  top.position.y = item.h + 0.003;
+  previewScene.add(top);
+
+  // Floor outline
+  const lineMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(...item.color), transparent: true, opacity: 0.7 });
+  [[0, item.w, 0.012, -item.d/2], [0, item.w, 0.012, item.d/2]].forEach(([,lw,,z]) => {
+    const g = new THREE.BoxGeometry(lw, 0.003, 0.012);
+    const m = new THREE.Mesh(g, lineMat);
+    m.position.set(0, 0, z); previewScene.add(m);
+  });
+  [[-item.w/2, item.d], [item.w/2, item.d]].forEach(([x,ld]) => {
+    const g = new THREE.BoxGeometry(0.012, 0.003, ld);
+    const m = new THREE.Mesh(g, lineMat);
+    m.position.set(x, 0, 0); previewScene.add(m);
+  });
+
+  // Dimension lines
+  const yellow = new THREE.MeshBasicMaterial({ color: 0xffd700, transparent: true, opacity: 0.9 });
+  const green  = new THREE.MeshBasicMaterial({ color: 0x2dd4a0, transparent: true, opacity: 0.9 });
+  const red    = new THREE.MeshBasicMaterial({ color: 0xff7070, transparent: true, opacity: 0.9 });
+
+  // width
+  const wg = new THREE.BoxGeometry(item.w, 0.006, 0.006);
+  const wm = new THREE.Mesh(wg, yellow); wm.position.set(0, 0.01, item.d/2+0.07); previewScene.add(wm);
+  // depth
+  const dg = new THREE.BoxGeometry(0.006, 0.006, item.d);
+  const dm = new THREE.Mesh(dg, green); dm.position.set(item.w/2+0.07, 0.01, 0); previewScene.add(dm);
+  // height
+  const hg = new THREE.BoxGeometry(0.006, item.h, 0.006);
+  const hm = new THREE.Mesh(hg, red); hm.position.set(item.w/2+0.07, item.h/2, 0); previewScene.add(hm);
+}
+
+// ─── UI rendering ────────────────────────────────────────────────
+function renderCategories() {
+  const el = document.getElementById('categories');
+  el.innerHTML = categories.map(c => `
+    <button class="cat-btn ${c === selectedCat ? 'active' : ''}"
+      onclick="selectCat('${c}')">${c}</button>
+  `).join('');
+}
+
+function renderFurniture() {
+  const items = selectedCat === 'Svi' ? furniture : furniture.filter(f => f.cat === selectedCat);
+  const el = document.getElementById('furniture-scroll');
+  el.innerHTML = items.map(item => `
+    <div class="furn-card ${item.id === selectedItem.id ? 'selected' : ''}"
+      onclick="selectItem(${item.id})">
+      <div class="furn-icon-box">
+        <div class="furn-emoji">${item.emoji}</div>
+        <div class="furn-size">${Math.round(item.w*100)}×${Math.round(item.d*100)}</div>
+      </div>
+      <div class="furn-label">${item.name}</div>
+    </div>
+  `).join('');
+}
+
+function updateSelectedBar(item) {
+  document.getElementById('sel-emoji').textContent = item.emoji;
+  document.getElementById('sel-name').textContent  = item.name;
+  document.getElementById('sel-dims').textContent  =
+    `Š: ${Math.round(item.w*100)}cm  D: ${Math.round(item.d*100)}cm  V: ${Math.round(item.h*100)}cm`;
+  document.getElementById('status-dot').classList.add('active');
+  document.getElementById('status-text').textContent = item.name + ' — odabrano';
+}
+
+// ─── Actions ─────────────────────────────────────────────────────
+window.selectCat = function(cat) {
+  selectedCat = cat;
+  renderCategories();
+  renderFurniture();
+};
+
+window.selectItem = function(id) {
+  selectedItem = furniture.find(f => f.id === id);
+  renderFurniture();
+  updateSelectedBar(selectedItem);
+  // Rebuild preview
+  if (previewScene) {
+    while(previewScene.children.length > 0) previewScene.remove(previewScene.children[0]);
+    previewScene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const dir = new THREE.DirectionalLight(0xffffff, 1.2);
+    dir.position.set(3, 5, 4); previewScene.add(dir);
+    const fill = new THREE.DirectionalLight(0x8090ff, 0.4);
+    fill.position.set(-3, 2, -2); previewScene.add(fill);
+    const gridHelper = new THREE.GridHelper(6, 20, 0x223355, 0x111824);
+    previewScene.add(gridHelper);
+    buildItemMesh(selectedItem);
+    const r = Math.max(selectedItem.w, selectedItem.d) * 2.2;
+    previewCamera.aspect = renderer.domElement.width / renderer.domElement.height;
+    previewCamera.updateProjectionMatrix();
+  } else {
+    initPreview(selectedItem);
+  }
+};
+
+window.openARModal = async function() {
+  const item = selectedItem;
+  document.getElementById('modal-name').textContent = item.name;
+  document.getElementById('modal-dims').innerHTML = `
+    <div class="dim-item">
+      <div class="dim-label">Širina</div>
+      <div class="dim-val" style="color:var(--yellow)">${Math.round(item.w*100)} cm</div>
+    </div>
+    <div class="dim-item">
+      <div class="dim-label">Dubina</div>
+      <div class="dim-val" style="color:var(--green)">${Math.round(item.d*100)} cm</div>
+    </div>
+    <div class="dim-item">
+      <div class="dim-label">Visina</div>
+      <div class="dim-val" style="color:var(--orange)">${Math.round(item.h*100)} cm</div>
+    </div>
+  `;
+
+  document.getElementById('ar-modal').classList.add('open');
+
+  // Load GLB into modal viewer
+  showToast('⏳ Generiram 3D model...');
+  const url = await buildGLB(item);
+  const mv  = document.getElementById('modal-viewer');
+  mv.src    = url;
+  showToast('✅ Model spreman!');
+};
+
+window.closeModal = function(e) {
+  document.getElementById('ar-modal').classList.remove('open');
+};
+
+window.launchAR = async function() {
+  const item = selectedItem;
+  const btn  = document.getElementById('btn-ar-main');
+  btn.textContent = '⏳ Učitavam...';
+
+  try {
+    const glbUrl = await buildGLB(item);
+
+    // Try WebXR first, fallback to model-viewer AR
+    const mv = document.getElementById('ar-trigger');
+    mv.src = glbUrl;
+
+    // Wait for model to load then activate AR
+    mv.addEventListener('load', () => {
+      mv.activateAR();
+    }, { once: true });
+
+    // Fallback: open in new tab as model-viewer
+    setTimeout(() => {
+      if (!document.hidden) {
+        // AR didn't launch, show inline model-viewer
+        showARInline(glbUrl, item);
+      }
+    }, 2500);
+
+  } catch (e) {
+    console.error(e);
+    showToast('❌ Greška pri učitavanju');
+  }
+
+  btn.textContent = '📐 Otvori u AR kameri';
+};
+
+function showARInline(glbUrl, item) {
+  // Open a new window/tab with model-viewer that has AR enabled
+  const html = `<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${item.name} – AR</title>
+<script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"><\/script>
+<style>
+  body{margin:0;background:#000;display:flex;flex-direction:column;height:100vh;font-family:sans-serif}
+  model-viewer{flex:1;width:100%}
+  .info{padding:16px;background:#111;color:#fff;text-align:center}
+  .info h2{font-size:18px;margin:0 0 4px}
+  .info p{font-size:13px;color:#888;margin:0}
+</style>
+</head>
+<body>
+<model-viewer
+  src="${glbUrl}"
+  ar ar-modes="quick-look webxr scene-viewer"
+  ar-scale="fixed"
+  camera-controls auto-rotate
+  shadow-intensity="1"
+  exposure="1.2"
+  style="flex:1;width:100%">
+  <button slot="ar-button" style="
+    position:absolute;bottom:24px;left:50%;transform:translateX(-50%);
+    padding:14px 28px;background:#2dd4a0;border:none;border-radius:50px;
+    font-size:16px;font-weight:700;color:#001a12;cursor:pointer">
+    📐 Postavi u prostoru
+  </button>
+</model-viewer>
+<div class="info">
+  <h2>${item.emoji} ${item.name}</h2>
+  <p>Š: ${Math.round(item.w*100)}cm × D: ${Math.round(item.d*100)}cm × V: ${Math.round(item.h*100)}cm</p>
+</div>
+</body></html>`;
+
+  const blob = new Blob([html], { type: 'text/html' });
+  const url  = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+  document.getElementById('ar-modal').classList.remove('open');
+}
+
+// ─── Toast ───────────────────────────────────────────────────────
+window.showToast = function(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
+};
+
+// ─── Start app ───────────────────────────────────────────────────
+window.startApp = async function() {
+  document.getElementById('splash').style.display = 'none';
+  const app = document.getElementById('app');
+  app.classList.add('visible');
+  renderCategories();
+  renderFurniture();
+  updateSelectedBar(selectedItem);
+  await initPreview(selectedItem);
+};
+
+window.showHelp = function() {
+  showToast('👆 Odaberi → Pogledaj u AR → Postavi na pod');
+};
+
+// Resize handler
+window.addEventListener('resize', () => {
+  if (renderer) {
+    const canvas = document.getElementById('preview-canvas');
+    const W = canvas.parentElement.offsetWidth;
+    const H = canvas.parentElement.offsetHeight;
+    renderer.setSize(W, H);
+    if (previewCamera) {
+      previewCamera.aspect = W/H;
+      previewCamera.updateProjectionMatrix();
+    }
+  }
+});
+</script>
+</body>
+</html>
